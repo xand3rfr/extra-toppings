@@ -1,0 +1,14 @@
+{
+  "name": "Busy Pizzeria",
+  "version": "1.0",
+  "author": "example",
+  "game": "pizzeria",
+  "description": "More customers, faster arrivals, longer days.",
+  "patches": [
+    { "set": "timePerDay", "value": 14400 },
+    { "on": "customerManager", "set": "customerManager.numberOfCustomers",
+      "value": [6,6,7,7,7,8,8,8,8,9,9,9,9,9,10,10,10,10,10,10,10] },
+    { "on": "customerManager", "set": "customerManager.normalSpawnTiming", "value": 900 },
+    { "on": "customerManager", "set": "customerManager.firstSpawnTiming", "value": 450 }
+  ]
+}

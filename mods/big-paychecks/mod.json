@@ -1,0 +1,11 @@
+{
+  "name": "Big Paychecks",
+  "version": "1.0",
+  "author": "example",
+  "game": "any",
+  "description": "Weekly wage x5. Money is in cents.",
+  "patches": [
+    { "set": "userData.baseWeeklyWage", "value": 50000 },
+    { "set": "userData.wageIncreasePerRank", "value": 2500 }
+  ]
+}

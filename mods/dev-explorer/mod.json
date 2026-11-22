@@ -1,0 +1,15 @@
+{
+  "name": "Dev Explorer",
+  "version": "1.0",
+  "author": "example",
+  "game": "any",
+  "enabled": false,
+  "description": "Writes every field of key game objects to mods/modloader.log so you can find patch paths.",
+  "patches": [
+    { "dump": "gameData" },
+    { "dump": "userData" },
+    { "dump": "pizzaGame.data.FoodData::" },
+    { "on": "customerManager", "dump": "customerManager" },
+    { "on": "buildScreen", "dump": "buildScreen" }
+  ]
+}
