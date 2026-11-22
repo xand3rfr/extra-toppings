@@ -54,6 +54,8 @@ Want to play in a browser instead? Papa's Pizzeria Deluxe runs at https://port.x
 | Papa's Freezeria Deluxe | ❌ Not yet. Same engine, needs testing |
 | Papa's Mocharia Deluxe | ❌ Not yet. Same engine, needs testing |
 | One-line install that finds games and downloads its own tools | ✅ Works |
+| Mods in the browser port (port.xqnder.xyz) with a mod manager | ✅ Tested in browser |
+| No-code mod creator (papas.xqnder.xyz/create) | ✅ Works |
 | Keeping mods installed after a Steam update | ⚠️ Run the installer again; it detects the update |
 
 ## How to install
@@ -92,7 +94,14 @@ $env:EXTRA_TOPPINGS_UNINSTALL=1; irm papas.xqnder.xyz/install | iex
 
 ## Making mods
 
-A mod is a folder in `mods` with a `mod.json`:
+**No coding:** use the [mod creator](https://papas.xqnder.xyz/create). Move sliders, then download the mod for Steam
+or try it in the [browser port](https://port.xqnder.xyz/#mods) with one click.
+
+**In the browser port:** mods work there too. Open **Mods** on port.xqnder.xyz to switch mods on and off, add them
+from a file or a link, or pick one from the library. Patch mods work the same; script mods only work in the Steam
+version.
+
+By hand, a mod is a folder in `mods` with a `mod.json`:
 
 ```json
 {
@@ -186,14 +195,17 @@ into the game's own domain, so game classes are reachable through `api.getClass`
 |---|---|---|
 | Installer | Finds games, gets Java and FFDec, backs up `Main.assets`, decompiles the two classes it hooks from your copy, adds the hooks, recompiles, checks the result and installs it | `install.ps1` |
 | One-line installer | Downloads this repo to `%LOCALAPPDATA%\ExtraToppings\loader` and runs `install.ps1` | `get.ps1` |
-| Loader | Reads `mods/*/mod.json`, runs patches when their event fires, loads script mods, writes `mods/modloader.log` | `src/flipline/mods/ModLoader.as` |
+| Loader | Runs patches when their event fires. Has no file or platform code of its own | `src/flipline/mods/ModLoader.as` |
+| Desktop platform | Reads `mods/*/mod.json`, loads script mods, writes `mods/modloader.log` | `src/flipline/mods/DesktopPlatform.as` |
+| Web platform | Gets mods from the web page through `ExternalInterface` (`xqModsList`, `xqModsGame`, `xqModsLog`) | `src/flipline/mods/WebPlatform.as` |
 | Start hook | `DataHelper.loadData()` starts the loader at the end of game startup, after every data object exists | Added by the installer |
 | Day hook | `CustomerManager.setupManager()` fires `customerManager` before the day's lineup is built | Added by the installer |
 | Screen events | A per-frame check fires an event when a root field such as `buildScreen` gets a new object | `ModLoader.as` |
 | Example mods | Busy Pizzeria, Big Paychecks, Dev Explorer | `mods/` |
 
-FFDec's command line can only replace classes, not add new ones, so the loader is compiled in as a private class
-inside `DataHelper.as`. Other hooks reach it through `DataHelper.mod()`.
+FFDec's command line can only replace classes, not add new ones, so the loader and one platform class (renamed to
+`Platform`) are compiled in as private classes inside `DataHelper.as`. Other hooks reach it through `DataHelper.mod()`.
+To build a browser version: `.\install.ps1 -BuildFrom <Main.assets> -BuildTo <out> -Platform web`.
 
 ## Want to help?
 

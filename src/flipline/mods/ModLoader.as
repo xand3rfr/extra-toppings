@@ -1,32 +1,23 @@
-﻿package flipline.mods
+package flipline.mods
 {
-   import flash.desktop.NativeApplication;
-   import flash.display.Loader;
    import flash.events.Event;
-   import flash.events.IOErrorEvent;
-   import flash.filesystem.File;
-   import flash.filesystem.FileMode;
-   import flash.filesystem.FileStream;
-   import flash.system.ApplicationDomain;
-   import flash.system.LoaderContext;
-   import flash.utils.ByteArray;
    import flash.utils.Dictionary;
    import flash.utils.describeType;
    import flash.utils.getDefinitionByName;
 
+   // The platform-independent half of the loader. The installer builds it together with
+   // DesktopPlatform (reads the game's mods folder) or WebPlatform (gets mods from the web page),
+   // renamed to Platform.
    public class ModLoader
    {
-      public static const VERSION:String = "1.0.0";
+      public static const VERSION:String = "1.1.0";
 
       public static var game:Object = null;
       public static var mods:Array = [];
-      public static var modsDir:File = null;
 
       private static var listeners:Object = {};
       private static var lastSeen:Dictionary = new Dictionary(true);
       private static var watched:Object = {};
-      private static var logFile:File = null;
-      private static var loaders:Array = [];
 
       public static function init(gameObj:Object) : void
       {
@@ -37,15 +28,11 @@
          game = gameObj;
          try
          {
-            // A File built from nativePath is writable; File.applicationDirectory itself is read-only.
-            modsDir = new File(File.applicationDirectory.nativePath).resolvePath("mods");
-            if(!modsDir.exists || !modsDir.isDirectory)
+            if(!Platform.start())
             {
                return;
             }
-            logFile = modsDir.resolvePath("modloader.log");
-            writeFile(logFile,"");
-            log("Extra Toppings " + VERSION + " | app " + NativeApplication.nativeApplication.applicationID);
+            log("Extra Toppings " + VERSION + " | " + Platform.describe());
             loadMods();
             gameObj.addEventListener(Event.ENTER_FRAME,onFrame);
             emit("init",gameObj);
@@ -58,22 +45,11 @@
 
       private static function loadMods() : void
       {
-         var appId:String = NativeApplication.nativeApplication.applicationID.toLowerCase();
-         var dirs:Array = modsDir.getDirectoryListing().filter(function(f:File, ... r):Boolean
-         {
-            return f.isDirectory && f.resolvePath("mod.json").exists;
-         });
-         dirs.sortOn("name",Array.CASEINSENSITIVE);
-         for each(var dir:File in dirs)
+         var appId:String = Platform.appId().toLowerCase();
+         for each(var def:Object in Platform.loadDefs())
          {
             try
             {
-               var def:Object = JSON.parse(readFile(dir.resolvePath("mod.json")));
-               def.dir = dir;
-               if(!def.name)
-               {
-                  def.name = dir.name;
-               }
                if(def.enabled === false)
                {
                   log("skip " + def.name + " (disabled)");
@@ -93,12 +69,12 @@
                }
                if(def.script)
                {
-                  loadScript(def);
+                  Platform.loadScript(def);
                }
             }
             catch(err:Error)
             {
-               log("ERROR in " + dir.name + "/mod.json: " + err.message);
+               log("ERROR in " + def.name + ": " + err.message);
             }
          }
       }
@@ -313,42 +289,6 @@
          return lines.join("\n");
       }
 
-      private static function loadScript(def:Object) : void
-      {
-         // Closures below reach statics through L (see note on on()).
-         var L:Class = ModLoader;
-         var bytes:ByteArray = new ByteArray();
-         var fs:FileStream = new FileStream();
-         fs.open((def.dir as File).resolvePath(def.script),FileMode.READ);
-         fs.readBytes(bytes);
-         fs.close();
-         var ctx:LoaderContext = new LoaderContext(false,ApplicationDomain.currentDomain);
-         ctx.allowCodeImport = true;
-         var loader:Loader = new Loader();
-         loaders.push(loader);
-         loader.contentLoaderInfo.addEventListener(IOErrorEvent.IO_ERROR,function(e:IOErrorEvent):void
-         {
-            L.log("ERROR loading script " + def.script + ": " + e.text);
-         });
-         loader.contentLoaderInfo.addEventListener(Event.COMPLETE,function(e:Event):void
-         {
-            try
-            {
-               var inst:* = def.main ? L.construct(L.getClass(def.main),[]) : loader.content;
-               if(inst && inst.hasOwnProperty("init"))
-               {
-                  inst.init(L.makeApi(def));
-               }
-               L.log("script ready: " + def.name);
-            }
-            catch(err:Error)
-            {
-               L.log("ERROR starting script " + def.name + ": " + err.getStackTrace());
-            }
-         });
-         loader.loadBytes(bytes,ctx);
-      }
-
       public static function getClass(name:String) : Class
       {
          return getDefinitionByName(name) as Class;
@@ -375,44 +315,14 @@
             "dump":dump,
             "readText":function(rel:String):String
             {
-               return L.readFile((def.dir as File).resolvePath(rel));
+               return Platform.readText(def,rel);
             }
          };
       }
       public static function log(msg:String) : void
       {
          trace("[ModLoader] " + msg);
-         if(logFile == null)
-         {
-            return;
-         }
-         try
-         {
-            var fs:FileStream = new FileStream();
-            fs.open(logFile,FileMode.APPEND);
-            fs.writeUTFBytes(msg + "\r\n");
-            fs.close();
-         }
-         catch(err:Error)
-         {
-         }
-      }
-
-      public static function readFile(f:File) : String
-      {
-         var fs:FileStream = new FileStream();
-         fs.open(f,FileMode.READ);
-         var s:String = fs.readUTFBytes(fs.bytesAvailable);
-         fs.close();
-         return s;
-      }
-
-      private static function writeFile(f:File, s:String) : void
-      {
-         var fs:FileStream = new FileStream();
-         fs.open(f,FileMode.WRITE);
-         fs.writeUTFBytes(s);
-         fs.close();
+         Platform.write(msg);
       }
    }
 }

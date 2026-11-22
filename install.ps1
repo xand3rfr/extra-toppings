@@ -3,7 +3,11 @@
     [string[]]$Game,
     [switch]$Uninstall,
     [string]$FFDec,
-    [switch]$NoPause
+    [switch]$NoPause,
+    [string]$BuildFrom,
+    [string]$BuildTo,
+    [ValidateSet("desktop", "web")]
+    [string]$Platform = "desktop"
 )
 $ErrorActionPreference = "Stop"
 $ProgressPreference = "SilentlyContinue"
@@ -145,14 +149,38 @@ function Install-Game($id, $dir) {
         Copy-Item $main $backup
     }
 
-    $build = Join-Path $Home_ "build\$id"
+    $out = Build-Modded $id $backup "desktop"
+    Copy-Item $out $main -Force
+    & $hash $main | Set-Content $marker
+
+    $mods = Join-Path $dir "mods"
+    New-Item -ItemType Directory -Force $mods | Out-Null
+    $examples = Join-Path $mods "_examples"
+    if (-not (Test-Path $examples)) {
+        Copy-Item (Join-Path $PSScriptRoot "mods") $examples -Recurse
+        Set-Content (Join-Path $examples "README.txt") "These example mods are switched off. Move a folder out of _examples (into mods) to turn it on."
+    }
+    Say "  Installed! Mods folder: $mods" Green
+    $script:InstalledMods += $mods
+}
+
+function Get-LoaderSource($platform) {
+    $strip = { param($file) (Get-Content (Join-Path $PSScriptRoot "src\flipline\mods\$file") -Raw) -replace '^\s*\uFEFF?\s*package flipline\.mods\s*\{', '' -replace '\}\s*$', '' }
+    $core = (& $strip "ModLoader.as") -replace 'public class ModLoader', 'class ModLoader'
+    $plat = if ($platform -eq "web") { "WebPlatform" } else { "DesktopPlatform" }
+    $core + "`r`n" + ((& $strip "$plat.as") -replace "public class $plat", 'class Platform')
+}
+
+function Build-Modded($id, $inputSwf, $platform) {
+    $g = $Games[$id]
+    $build = Join-Path $Home_ "build\$id-$platform"
     if (Test-Path $build) { Remove-Item $build -Recurse -Force }
     $extract = Join-Path $build "original"
     $stage = Join-Path $build "scripts"
     $classes = "$($g.Pkg).utils.DataHelper,$($g.Pkg).managers.CustomerManager"
 
     Step "Reading the game's code..."
-    Invoke-FFDec @("-selectclass", $classes, "-export", "script", $extract, $backup) | Out-Null
+    Invoke-FFDec @("-selectclass", $classes, "-export", "script", $extract, $inputSwf) | Out-Null
     $src = Join-Path $extract "scripts\$($g.Pkg)"
     if (-not (Test-Path "$src\utils\DataHelper.as")) { throw "Couldn't read the game's code." }
 
@@ -170,8 +198,7 @@ function Install-Game($id, $dir) {
     }
     # FFDec's -importScript can only replace existing classes, so ModLoader rides along as a
     # file-private class inside DataHelper.as; other hooks reach it through DataHelper.mod().
-    $loader = Get-Content (Join-Path $PSScriptRoot "src\flipline\mods\ModLoader.as") -Raw
-    $loader = $loader -replace '^\s*package flipline\.mods\s*\{', '' -replace '\}\s*$', '' -replace 'public class ModLoader', 'class ModLoader'
+    $loader = Get-LoaderSource $platform
     $bridge = "public static function mod(event:String, target:Object) : void`r`n      {`r`n         ModLoader.emit(event,target);`r`n      }`r`n"
     # All game data objects exist by the time loadData runs (end of GameModule.initGame).
     Add-Hook "utils\DataHelper.as" '(public function loadData\([^)]*\) : void\s*\{)' "`$1`r`n         ModLoader.init(this.gameObj);" -append "`r`n$loader"
@@ -181,7 +208,7 @@ function Install-Game($id, $dir) {
 
     Step "Building the modded game (this takes a minute)..."
     $out = Join-Path $build "Main.assets"
-    $log = Invoke-FFDec @("-air", "-importScript", $backup, $out, $stage)
+    $log = Invoke-FFDec @("-air", "-importScript", $inputSwf, $out, $stage)
     $log | Set-Content (Join-Path $build "ffdec.log")
     if (-not (Test-Path $out)) { Say $log DarkGray; throw "Building failed. Details: $build\ffdec.log" }
 
@@ -193,23 +220,20 @@ function Install-Game($id, $dir) {
     if ($dh -notmatch "class ModLoader" -or $dh -notmatch "ModLoader\.init" -or $cm -notmatch "DataHelper\.mod\(") {
         throw "The build is missing the loader, so nothing was installed."
     }
-
-    Copy-Item $out $main -Force
-    & $hash $main | Set-Content $marker
-
-    $mods = Join-Path $dir "mods"
-    New-Item -ItemType Directory -Force $mods | Out-Null
-    $examples = Join-Path $mods "_examples"
-    if (-not (Test-Path $examples)) {
-        Copy-Item (Join-Path $PSScriptRoot "mods") $examples -Recurse
-        Set-Content (Join-Path $examples "README.txt") "These example mods are switched off. Move a folder out of _examples (into mods) to turn it on."
-    }
-    Say "  Installed! Mods folder: $mods" Green
-    $script:InstalledMods += $mods
+    $out
 }
 
 Say "`n  EXTRA TOPPINGS  |  mod loader for Papa's Deluxe games`n" Magenta
 try {
+    if ($BuildFrom) {
+        if (-not $BuildTo) { throw "-BuildFrom needs -BuildTo." }
+        $script:Java = Get-Java
+        $script:Jar = Get-FFDecJar
+        $id = if ($Game) { $Game[0] } else { "pizzeria" }
+        Copy-Item (Build-Modded $id (Resolve-Path $BuildFrom).Path $Platform) $BuildTo -Force
+        Say "Built $Platform version: $BuildTo" Green
+        exit 0
+    }
     $found = Find-Games
     if (-not $found.Count) { throw "Couldn't find any Papa's Deluxe games in your Steam libraries. Install one from Steam first." }
 
