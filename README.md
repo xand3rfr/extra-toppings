@@ -36,6 +36,8 @@ copy of the game**.
 
 Website: https://papas.xqnder.xyz
 <br>
+Want to play in a browser instead? Papa's Pizzeria Deluxe runs at https://port.xqnder.xyz
+<br>
 
 ## Project status
 
@@ -51,43 +53,42 @@ Website: https://papas.xqnder.xyz
 | Script mods (compiled ActionScript) | ⚠️ Experimental, untested |
 | Papa's Freezeria Deluxe | ❌ Not yet. Same engine, needs testing |
 | Papa's Mocharia Deluxe | ❌ Not yet. Same engine, needs testing |
-| Keeping mods installed after a Steam update | ❌ Run the installer again after an update |
+| One-line install that finds games and downloads its own tools | ✅ Works |
+| Keeping mods installed after a Steam update | ⚠️ Run the installer again; it detects the update |
 
 ## How to install
 
-The patched game isn't downloaded ready-made. The installer builds it on your PC from your own copy.
+You need **Windows 10/11** and **your own copy** of Papa's Pizzeria Deluxe from Steam. Nothing else.
 
-**The easy way:**
-
-1. Install the prerequisites below.
-2. Download this project: **Code → Download ZIP**, then unzip it anywhere.
-3. Close the game. Open PowerShell in the unzipped folder and run:
+**One line.** Open PowerShell (Start menu, type `PowerShell`) and paste:
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File .\install.ps1 -Game pizzeria
+irm papas.xqnder.xyz/install | iex
 ```
 
-4. Put mod folders in the new `mods` folder inside the game's install folder, then start the game.
+**Or download it.** **Code → Download ZIP**, unzip it anywhere and double-click `Install.bat`.
 
-The installer backs up `Data\assets\Main.assets` to `Main.assets.original`, then checks that the patched file really
-contains the loader before installing it. It never installs a broken build.
+The installer does everything for you:
 
-**Prerequisites:**
+- Finds your games in every Steam library, even on other drives.
+- Downloads the tools it needs the first time: [FFDec](https://github.com/jindrapetrik/jpexs-decompiler) and Java
+  if you don't have them. They're kept in `%LOCALAPPDATA%\ExtraToppings`.
+- Waits for you to close the game if it's running.
+- Backs up `Data\assets\Main.assets` to `Main.assets.original`, builds the modded game from your copy and checks that
+  the build really contains the loader. It never installs a broken build.
+- Creates the `mods` folder with example mods in `mods\_examples` and opens it.
+- After a Steam update, run it again. It notices the new game version and backs that up instead.
 
-- **Your own copy** of Papa's Pizzeria Deluxe from Steam.
-- **Windows 10/11.**
-- [JPEXS FFDec](https://github.com/jindrapetrik/jpexs-decompiler/releases), installed with its default options.
-  The installer uses it to patch the game.
+Then start the game from Steam as usual. To turn on a mod, move its folder from `_examples` into `mods`.
 
-**More options:**
+**Uninstall** (puts the original game back, keeps your mods folder): double-click `Uninstall.bat`, or paste:
 
 ```powershell
-.\install.ps1 -Game pizzeria -SteamCommon "D:\SteamLibrary\steamapps\common"   # game in another Steam library
-.\install.ps1 -Game pizzeria -FFDec "D:\Tools\FFDec\ffdec-cli.exe"             # FFDec somewhere else
-.\install.ps1 -Game pizzeria -Uninstall                                        # put the original game back
+$env:EXTRA_TOPPINGS_UNINSTALL=1; irm papas.xqnder.xyz/install | iex
 ```
 
-After a Steam update replaces the game files, delete `Main.assets.original` and run the installer again.
+**Experimental games:** Freezeria and Mocharia aren't tested yet. To try one anyway:
+`.\install.ps1 -Game freezeria`.
 
 ## Making mods
 
@@ -183,7 +184,8 @@ into the game's own domain, so game classes are reachable through `api.getClass`
 
 | Piece | What it does | Where |
 |---|---|---|
-| Installer | Backs up `Main.assets`, decompiles the two classes it hooks from your copy, adds the hooks, recompiles with FFDec, checks the result and installs it | `install.ps1` |
+| Installer | Finds games, gets Java and FFDec, backs up `Main.assets`, decompiles the two classes it hooks from your copy, adds the hooks, recompiles, checks the result and installs it | `install.ps1` |
+| One-line installer | Downloads this repo to `%LOCALAPPDATA%\ExtraToppings\loader` and runs `install.ps1` | `get.ps1` |
 | Loader | Reads `mods/*/mod.json`, runs patches when their event fires, loads script mods, writes `mods/modloader.log` | `src/flipline/mods/ModLoader.as` |
 | Start hook | `DataHelper.loadData()` starts the loader at the end of game startup, after every data object exists | Added by the installer |
 | Day hook | `CustomerManager.setupManager()` fires `customerManager` before the day's lineup is built | Added by the installer |
@@ -197,7 +199,7 @@ inside `DataHelper.as`. Other hooks reach it through `DataHelper.mod()`.
 
 - **Test a work day** with the `busy-pizzeria` mod and report whether the customer changes show up in
   `mods/modloader.log` and in game.
-- **Freezeria and Mocharia**: run the installer with `-Game freezeria` or `-Game mocharia` and report what happens.
+- **Freezeria and Mocharia**: run `.\install.ps1 -Game freezeria` or `-Game mocharia` and report what happens.
 - **Script mods**: build the example above with the AIR SDK and report whether it loads.
 - **Make mods** and share them.
 
